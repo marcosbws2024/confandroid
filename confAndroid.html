@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="antialiased">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurador Serial Web Local</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <script>
+        // Configuração Tailwind para Modo Escuro
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'main-blue': '#3b82f6',
+                        'main-blue-dark': '#2563eb',
+                        'success-green': '#10b981',
+                        'error-red': '#ef4444',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Estilos base e transições */
+        :root {
+            color-scheme: light dark;
+        }
+
+        body {
+            transition: background-color 0.4s, color 0.4s;
+            font-family: 'Inter', sans-serif;
+            color: #1f2937;
+        }
+
+        /* --- ESTILOS DE COR PADRÃO (LIGHT MODE) --- */
+        body {
+            background-color: #f3f4f6;
+        }
+
+        .card-bg {
+            background-color: white;
+            border-color: #e5e7eb;
+        }
+
+        .status-info-bg {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .console-bg {
+            background-color: #1f2937;
+            color: #6ee7b7;
+            font-family: monospace;
+        }
+
+        .command-item-bg {
+            background-color: #f9fafb;
+            border-color: #e5e7eb;
+        }
+
+        /* === GARANTIA DO TEXTFIELD NO MODO CLARO === */
+        input:not([type="file"]):not([disabled]),
+        select:not([disabled]) {
+            background-color: white !important;
+            color: #1f2937 !important;
+            border-color: #d1d5db !important;
+        }
+
+        /* --- CORREÇÃO TEXTUAL E FUNDO PARA DARK MODE --- */
+
+        .dark {
+            color: #e2e8f0;
+        }
+
+        .dark body {
+            background-color: #0f172a;
+        }
+
+        .dark .card-bg,
+        .dark h1,
+        .dark h2,
+        .dark h3,
+        .dark h4,
+        .dark p,
+        .dark label,
+        .dark .text-gray-800,
+        .dark .text-default {
+            color: #e2e8f0 !important;
+        }
+
+        .dark .text-gray-500 {
+            color: #94a3b8 !important;
+        }
+
+        .dark .card-bg {
+            background-color: #1e293b;
+            border-color: #334155;
+        }
+
+        .dark .status-info-bg {
+            background-color: #334155;
+            color: #cbd5e1;
+        }
+
+        .dark .console-bg {
+            background-color: #020617;
+            color: #818cf8;
+        }
+
+        .dark .command-item-bg {
+            background-color: #334155;
+            border-color: #475569;
+        }
+
+        /* === GARANTIA DO TEXTFIELD NO MODO ESCURO === */
+        .dark input:not([type="file"]):not([disabled]),
+        .dark select:not([disabled]) {
+            color: #e2e8f0 !important;
+            background-color: #334155 !important;
+            border-color: #475569 !important;
+        }
+
+        /* --- Estilos do Botão PRINCIPAL (2. Enviar Sequência de Comandos) --- */
+        .send-button-style {
+            background-color: #2563eb !important;
+            color: white !important;
+            transition: all 0.2s ease;
+            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.5), 0 4px 6px -2px rgba(37, 99, 235, 0.3);
+        }
+
+        .send-button-style:hover {
+            background-color: #009735 !important;
+            color: black !important;
+            transform: translateY(-1px);
+        }
+
+        .dark .send-button-style {
+            background-color: white !important;
+            color: black !important;
+            box-shadow: 0 10px 15px -3px rgba(255, 255, 255, 0.2), 0 4px 6px -2px rgba(255, 255, 255, 0.1);
+        }
+
+        .dark .send-button-style:hover {
+            background-color: #2b84f1 !important;
+            color: black !important;
+            transform: translateY(-1px);
+        }
+
+        /* Estilos de Status (Conectado/Desconectado) */
+        .serial-status-connected {
+            background-color: #dcfce7;
+            color: #16a34a;
+        }
+
+        .serial-status-disconnected {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+
+        .dark .serial-status-connected {
+            background-color: #16a34a;
+            color: #ecfdf5;
+        }
+
+        .dark .serial-status-disconnected {
+            background-color: #dc2626;
+            color: #fee2e2;
+        }
+
+        /* Layout de Comandos Responsivo */
+        .command-item {
+            display: grid;
+            grid-template-columns: 1.5fr 3fr 1fr auto auto;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        @media (max-width: 640px) {
+            .command-item {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+                padding-bottom: 1.5rem;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            .dark .command-item {
+                border-color: #475569;
+            }
+        }
+    </style>
+</head>
+
+<body class="transition duration-400">
+
+    <div id="app" class="min-h-screen p-4 sm:p-8 flex items-start justify-center">
+        <div class="w-full max-w-4xl card-bg p-6 sm:p-10 rounded-2xl shadow-2xl border transition duration-400">
+
+            <div class="flex justify-between items-center pb-6 border-b border-gray-200 dark:border-slate-700 mb-6">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-800 transition duration-400">Configurador Serial Web
+                    </h1>
+                    <p class="text-sm text-gray-500 transition duration-400">Ferramenta moderna para gestão de
+                        sequências AT.</p>
+                </div>
+                <button id="dark-mode-toggle" onclick="toggleDarkMode()"
+                    class="p-2 rounded-full text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-slate-700 hover:ring-2 ring-main-blue transition duration-300 shadow-md"
+                    title="Alternar Modo Escuro/Claro">
+                    <svg id="sun-icon" class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <svg id="moon-icon" class="h-6 w-6 hidden" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4 pt-2 pb-6 border-b border-gray-200 dark:border-slate-700 transition duration-300">
+                <h2 class="text-xl font-bold text-gray-800 transition duration-300 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-main-blue" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                            d="M5 4a1 1 0 011-1h8a1 1 0 011 1v2h-1V5H6v1h-1V4zM5 8a1 1 0 011-1h8a1 1 0 011 1v8a1 1 0 01-1 1H6a1 1 0 01-1-1V8z" />
+                    </svg>
+                    1. Configuração de Conexão
+                </h2>
+
+                <button id="connect-serial-btn" onclick="connectSerialPort()"
+                    class="w-full p-3 rounded-lg text-white font-bold bg-main-blue hover:bg-main-blue-dark transition duration-150 shadow-lg shadow-main-blue/50">
+                    Conectar USB/Serial (Detectar Dispositivo)
+                </button>
+
+                <div id="port-status"
+                    class="p-3 text-sm rounded-lg text-center font-semibold serial-status-disconnected transition duration-300 shadow-inner">
+                    Dispositivo Desconectado.
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <label for="baud-rate"
+                            class="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Baud Rate</label>
+                        <select id="baud-rate"
+                            class="w-full p-3 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-main-blue focus:border-main-blue transition duration-150 appearance-none">
+                            <option value="115200" selected>115200</option>
+                            <option value="9600">9600</option>
+                            <option value="57600">57600</option>
+                            <option value="38400">38400</option>
+                            <option value="2400">2400</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="stop-bits"
+                            class="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Stop Bits</label>
+                        <select id="stop-bits"
+                            class="w-full p-3 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-main-blue focus:border-main-blue transition duration-150 appearance-none">
+                            <option value="1" selected>1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Data
+                            Bits</label>
+                        <input value="8" disabled
+                            class="w-full p-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-600 dark:text-slate-400 text-sm opacity-70">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Paridade</label>
+                        <input value="None" disabled
+                            class="w-full p-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-600 dark:text-slate-400 text-sm opacity-70">
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-6">
+                <h2 class="text-xl font-bold text-gray-800 transition duration-300 flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-2 text-success-green" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                        <path fill-rule="evenodd"
+                            d="M4 5a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm3.707 5.707a1 1 0 00-1.414-1.414l-2 2a1 1 0 000 1.414l2 2a1 1 0 001.414-1.414L6.414 12H13a1 1 0 100-2H6.414l1.293-1.293z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    Sequência de Comandos
+                </h2>
+
+                <div
+                    class="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900 border-l-4 border-yellow-500 text-yellow-800 dark:text-yellow-200 rounded-lg transition duration-300 shadow-sm">
+                    <p class="font-semibold mb-2 flex items-center"><svg class="w-4 h-4 inline mr-2" fill="currentColor"
+                            viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M12.395 2.5a1 1 0 00-.765-.395H8.37a1 1 0 00-.765.395L3.8 6.643A1 1 0 004 8h12a1 1 0 00.2-.075L12.395 2.5zM16 8a1 1 0 001-1V5a1 1 0 00-1-1h-1.643a1 1 0 00-.765-.395l-3.238-4.305a1 1 0 00-1.79 0L5.643 3.605A1 1 0 004.643 4H3a1 1 0 00-1 1v2a1 1 0 001 1h13zm-1 2a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5a1 1 0 011-1h10z"
+                                clip-rule="evenodd" />
+                        </svg> Carregar CSV:</p>
+                    <input type="file" id="csv-file-input" accept=".csv" class="w-full text-sm text-gray-700 dark:text-slate-300
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-full file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-success-green/10 dark:file:bg-success-green/20 file:text-success-green file:hover:bg-success-green/20 dark:file:hover:bg-success-green/30
+                            transition duration-150" />
+                    <p class="text-xs mt-2 opacity-80">Formato: Descrição,Comando,Atraso(ms).</p>
+                </div>
+
+                <div
+                    class="command-item text-xs font-bold text-gray-500 dark:text-slate-400 hidden sm:grid pb-3 border-b border-gray-300 dark:border-slate-600 mb-3 transition duration-300">
+                    <div>Descrição</div>
+                    <div>Comando (Texto ou HEX)</div>
+                    <div class="text-center">Atraso (ms)</div>
+                    <div class="text-center">Executar</div>
+                    <div class="text-center">Remover</div>
+                </div>
+
+                <div id="commands-container" class="space-y-4">
+                    </div>
+
+                <div class="grid grid-cols-3 gap-4 mt-6">
+                    <button id="add-command-btn" onclick="addCommand()"
+                        class="w-full p-3 rounded-lg text-white font-bold bg-gray-500 hover:bg-gray-600 transition duration-150 shadow-md">
+                        <svg class="w-5 h-5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4">
+                            </path>
+                        </svg>
+                        Adicionar
+                    </button>
+                    <button id="clear-all-btn" onclick="clearAllCommands()"
+                        class="w-full p-3 rounded-lg text-white font-bold bg-error-red hover:bg-red-600 transition duration-150 shadow-md">
+                        Limpar
+                    </button>
+                    <button id="export-csv-btn" onclick="exportCommandsToCSV()"
+                        class="w-full p-3 rounded-lg text-white font-bold bg-success-green hover:bg-emerald-600 transition duration-150 shadow-md">
+                        Exportar CSV
+                    </button>
+                </div>
+
+                <button id="send-btn" onclick="sendConfiguration()" disabled
+                    class="w-full mt-6 p-4 rounded-xl font-extrabold text-lg uppercase tracking-widest send-button-style shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                    2. Enviar Sequência de Comandos
+                </button>
+            </div>
+
+            <hr class="my-8 border-gray-200 dark:border-slate-700 transition duration-300">
+
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-800 transition duration-300 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-error-red" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                            d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.5 7.5a.5.5 0 011 0v5a.5.5 0 01-1 0v-5zM10 14a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                    Status e Resposta do Dispositivo
+                </h2>
+            </div>
+
+            <div class="flex justify-between items-center mb-3">
+                <div class="text-base font-medium text-gray-700 dark:text-slate-400 transition duration-300">Log da
+                    Porta Serial</div>
+                <div class="flex space-x-2">
+                    <button id="pause-console-btn" onclick="toggleConsolePause()"
+                        class="py-1.5 px-4 text-xs rounded-full text-white font-bold bg-main-blue hover:bg-main-blue-dark transition duration-150 shadow-md">
+                        <svg id="console-play-icon" class="w-4 h-4 inline mr-1 -mt-0.5 hidden"
+                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <svg id="console-pause-icon" class="w-4 h-4 inline mr-1 -mt-0.5"
+                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v4a1 1 0 11-2 0V8z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <span id="pause-console-text">Pausar</span>
+                    </button>
+
+                    <button onclick="clearConsole()"
+                        class="py-1.5 px-4 text-xs rounded-full text-white font-bold bg-gray-500 hover:bg-gray-600 transition duration-150 shadow-md">
+                        <svg class="w-4 h-4 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                            </path>
+                        </svg>
+                        Limpar
+                    </button>
+                </div>
+            </div>
+            <div id="status-message"
+                class="p-3 text-sm rounded-lg status-info-bg border border-gray-300 dark:border-slate-600 transition duration-300 font-semibold">
+                <svg class="w-4 h-4 inline mr-2 text-main-blue dark:text-slate-300" fill="currentColor"
+                    viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 4a1 1 0 000 2h2a1 1 0 000-2h-2z"
+                        clip-rule="evenodd" />
+                </svg>
+                Aguardando conexão...
+            </div>
+            <pre id="response-data"
+                class="mt-4 p-4 text-xs rounded-lg overflow-x-auto h-40 console-bg border border-slate-700 dark:border-slate-900 transition duration-300 shadow-inner">Console Serial</pre>
+
+        </div>
+    </div>
+
+    <script>
+        // =====================================================================
+        // VARIÁVEIS GLOBAIS E CONSTANTES
+        // =====================================================================
+        const HTML_ELEMENT = document.documentElement;
+        const D_QUERY = (id) => document.getElementById(id);
+
+        const STATUS_MESSAGE_DIV = D_QUERY('status-message');
+        const RESPONSE_DATA_PRE = D_QUERY('response-data');
+        const COMMANDS_CONTAINER = D_QUERY('commands-container');
+        const CONNECT_BTN = D_QUERY('connect-serial-btn');
+        const SEND_BTN = D_QUERY('send-btn');
+        const PORT_STATUS_DIV = D_QUERY('port-status');
+        const BAUD_RATE_SELECT = D_QUERY('baud-rate');
+        const STOP_BITS_SELECT = D_QUERY('stop-bits');
+        const CSV_FILE_INPUT = D_QUERY('csv-file-input');
+        const SUN_ICON = D_QUERY('sun-icon');
+        const MOON_ICON = D_QUERY('moon-icon');
+        const PAUSE_CONSOLE_BTN = D_QUERY('pause-console-btn');
+        const CONSOLE_PLAY_ICON = D_QUERY('console-play-icon');
+        const CONSOLE_PAUSE_ICON = D_QUERY('console-pause-icon');
+        const PAUSE_CONSOLE_TEXT = D_QUERY('pause-console-text');
+
+        const MAX_CONSOLE_LINES = 500;
+
+        let serialPort = null;
+        let reader = null;
+        let writer = null;
+        let encoder = new TextEncoder();
+        let decoder = new TextDecoder();
+        let isConsolePaused = false;
+        let keepReading = false;
+        let readingLoopPromise = null;
+
+        // Dados de comandos padrão
+        let commands = [
+            { name: 'Verificar Módulo', command: 'AT\r\n', delay: 500 }, // AT é padrão
+            { name: 'Status de Conexão', command: 'AT+CSQ\r\n', delay: 500 }, // Exemplo AT
+            { name: 'Ler IMEI', command: 'AT+CGSN\r\n', delay: 500 } // Exemplo AT
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDarkModePreference();
+            renderCommands();
+            CSV_FILE_INPUT.addEventListener('change', loadCSV);
+
+            if ('serial' in navigator) {
+                setStatus('Web Serial API detectada. Conecte um dispositivo USB/Serial.', 'info');
+            } else {
+                setStatus('Erro: O seu navegador não suporta a Web Serial API. Tente Chrome/Edge em Desktop.', 'error');
+                CONNECT_BTN.disabled = true;
+            }
+        });
+
+        // =====================================================================
+        // LÓGICA DE CONEXÃO E COMUNICAÇÃO SERIAL
+        // =====================================================================
+
+        async function readSerial() {
+            keepReading = true;
+            const textDecoder = new TextDecoder();
+            
+            while (serialPort.readable && keepReading) {
+                reader = serialPort.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            // O reader foi cancelado (pela desconexão)
+                            break;
+                        }
+                        if (value) {
+                            // Decodifica os bytes e loga
+                            const receivedText = textDecoder.decode(value);
+                            logSerial(receivedText);
+                        }
+                    }
+                } catch (error) {
+                    if (keepReading) { // Se o erro não foi um cancelamento intencional
+                        console.error('Erro na leitura da porta serial:', error);
+                        setStatus(`Erro de leitura: ${error.message}`, 'error');
+                    }
+                } finally {
+                    reader.releaseLock();
+                    reader = null;
+                }
+            }
+            // Se o loop terminar, a porta foi fechada ou houve erro não recuperável
+            if (serialPort) {
+                // Tenta fechar a porta se ainda estiver aberta
+                try {
+                    await serialPort.close();
+                } catch (e) {
+                    console.warn("Erro ao fechar a porta após erro de leitura:", e);
+                }
+            }
+            setPortStatus(false);
+            setStatus("Dispositivo desconectado.", 'error');
+        }
+
+        async function writeSerial(data) {
+            if (!serialPort || !serialPort.writable) {
+                setStatus('Erro: Porta serial não está conectada para escrita.', 'error');
+                return false;
+            }
+
+            // O comando 'AT' deve ser formatado com quebra de linha (CR/LF)
+            const dataToWrite = data.endsWith('\r\n') ? data : data + '\r\n';
+            
+            try {
+                writer = serialPort.writable.getWriter();
+                const dataEncoded = encoder.encode(dataToWrite);
+
+                logSerial(`> ENVIANDO: ${dataToWrite.trim()}\n`);
+                await writer.write(dataEncoded);
+                return true;
+            } catch (error) {
+                console.error('Erro ao escrever na porta serial:', error);
+                setStatus(`Erro de escrita: ${error.message}`, 'error');
+                return false;
+            } finally {
+                // O releaseLock é crucial para permitir novas escritas ou leituras
+                if (writer) {
+                    writer.releaseLock();
+                    writer = null;
+                }
+            }
+        }
+
+        window.connectSerialPort = async function () {
+            if (serialPort) {
+                // DESCONECTAR
+                await disconnectSerialPort();
+                return;
+            }
+
+            // CONECTAR
+            if (!('serial' in navigator)) {
+                setStatus('Erro: Web Serial API não suportada.', 'error');
+                return;
+            }
+
+            try {
+                // Solicita a porta serial. O filtro é opcional, mas ajuda a listar
+                serialPort = await navigator.serial.requestPort({ });
+
+                const baudRate = parseInt(BAUD_RATE_SELECT.value);
+                const stopBits = parseInt(STOP_BITS_SELECT.value);
+
+                await serialPort.open({
+                    baudRate: baudRate,
+                    dataBits: 8, // Padrão
+                    stopBits: stopBits,
+                    parity: 'none' // Padrão
+                });
+
+                setPortStatus(true);
+                setStatus("Conectado com sucesso. Iniciando leitura...", 'success');
+                
+                // Inicia o loop de leitura em segundo plano
+                readingLoopPromise = readSerial();
+
+            } catch (error) {
+                console.error('Erro na conexão serial:', error);
+                serialPort = null;
+                setPortStatus(false);
+                setStatus(`Falha na conexão: ${error.message}. Tente reconfigurar a porta USB ou verificar o driver.`, 'error');
+            }
+        }
+        
+        async function disconnectSerialPort() {
+            if (reader) {
+                try {
+                    // Cancela o leitor para sair do loop readSerial
+                    await reader.cancel();
+                } catch (error) {
+                    console.warn("Erro ao cancelar o leitor:", error);
+                }
+            }
+            
+            keepReading = false;
+
+            if (writer) {
+                try {
+                    // Cancela o escritor
+                    await writer.abort();
+                } catch (error) {
+                    console.warn("Erro ao cancelar o escritor:", error);
+                }
+            }
+
+            // Espera o loop de leitura terminar
+            if (readingLoopPromise) {
+                try {
+                    await readingLoopPromise;
+                } catch (error) {
+                    console.warn("Erro ao aguardar o loop de leitura:", error);
+                }
+                readingLoopPromise = null;
+            }
+
+            if (serialPort) {
+                try {
+                    // Fecha a porta
+                    await serialPort.close();
+                } catch (error) {
+                    console.warn("Erro ao fechar a porta:", error);
+                }
+                serialPort = null;
+            }
+            
+            setPortStatus(false);
+            setStatus("Desconectado pelo usuário.", 'info');
+        }
+
+
+        window.sendConfiguration = async function () {
+            if (!serialPort) {
+                setStatus('Erro: Dispositivo não conectado.', 'error');
+                return;
+            }
+
+            SEND_BTN.disabled = true;
+            SEND_BTN.textContent = 'Enviando... (0%)';
+            let successCount = 0;
+
+            setStatus(`Iniciando sequência de ${commands.length} comandos...`, 'info');
+
+            for (let i = 0; i < commands.length; i++) {
+                const commandItem = commands[i];
+                const command = commandItem.command;
+                const delay = commandItem.delay || 500;
+
+                SEND_BTN.textContent = `Enviando... (${Math.round((i / commands.length) * 100)}%) ${commandItem.name}`;
+
+                const success = await writeSerial(command);
+
+                if (success) {
+                    successCount++;
+                } else {
+                    setStatus(`Erro ao enviar comando "${commandItem.name}". Parando sequência.`, 'error');
+                    break;
+                }
+
+                // Espera pelo atraso
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+
+            SEND_BTN.disabled = false;
+            SEND_BTN.textContent = '2. Enviar Sequência de Comandos';
+            setStatus(`Sequência concluída. Total de ${successCount} comandos enviados com sucesso.`, successCount === commands.length ? 'success' : 'error');
+        }
+
+        window.executeSingleCommand = async function (index) {
+            if (!serialPort) {
+                setStatus('Erro: Dispositivo não conectado.', 'error');
+                return;
+            }
+            const commandItem = commands[index];
+            if (!commandItem) return;
+
+            // Desabilita o botão para evitar cliques duplicados
+            const button = D_QUERY(`execute-btn-${index}`);
+            if (button) button.disabled = true;
+
+            setStatus(`Enviando comando único: ${commandItem.name}...`, 'info');
+            
+            const success = await writeSerial(commandItem.command);
+            
+            // Reabilita o botão
+            if (button) button.disabled = false;
+
+            if (success) {
+                setStatus(`Comando "${commandItem.name}" enviado com sucesso!`, 'success');
+            }
+        }
+
+        // =====================================================================
+        // LÓGICA DE GERENCIAMENTO DE COMANDOS E CSV
+        // =====================================================================
+
+        window.loadCSV = function (event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function (results) {
+                    commands = [];
+                    let newCommands = [];
+                    results.data.forEach(row => {
+                        // Tenta mapear as colunas: Descrição,Comando,Atraso(ms)
+                        const keys = Object.keys(row);
+                        
+                        let name = row[keys[0]] || 'Comando CSV';
+                        let command = row[keys[1]] || '';
+                        let delay = parseInt(row[keys[2]] || '500') || 500;
+                        
+                        // Garante que o delay seja um número positivo
+                        delay = Math.max(0, delay);
+
+                        newCommands.push({ name: name, command: command, delay: delay });
+                    });
+                    
+                    if (newCommands.length > 0) {
+                        commands = newCommands;
+                        setStatus(`CSV carregado! ${commands.length} comandos adicionados.`, 'success');
+                    } else {
+                        setStatus('O arquivo CSV não contém dados válidos.', 'error');
+                    }
+                    renderCommands();
+                },
+                error: function(err, file, inputElem, reason) {
+                    setStatus(`Erro ao analisar CSV: ${reason}`, 'error');
+                }
+            });
+        }
+
+        window.exportCommandsToCSV = function () {
+            const csvData = commands.map(cmd => ({
+                Descrição: cmd.name,
+                Comando: cmd.command,
+                'Atraso(ms)': cmd.delay
+            }));
+
+            const csv = Papa.unparse(csvData, { header: true });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "comandos_serial_" + Date.now() + ".csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setStatus('Comandos exportados para CSV com sucesso!', 'success');
+            }
+        }
+        
+        window.updateCommand = function (index, field, value) {
+            if (commands[index]) {
+                if (field === 'delay') {
+                    // Garante que o atraso é um número inteiro não negativo
+                    commands[index][field] = Math.max(0, parseInt(value) || 0);
+                } else {
+                    commands[index][field] = value;
+                }
+            }
+        }
+
+        window.addCommand = function () {
+            commands.push({ name: `Novo Comando ${commands.length + 1}`, command: '', delay: 500 });
+            renderCommands();
+        }
+
+        window.removeCommand = function (index) {
+            commands.splice(index, 1);
+            renderCommands();
+        }
+
+        window.clearAllCommands = function () {
+            if (confirm("Tem certeza que deseja remover TODOS os comandos da lista?")) {
+                commands = [];
+                renderCommands();
+                setStatus("Lista de comandos esvaziada.", 'info');
+            }
+        }
+
+        function updateExecuteButtonsState(isConnected) {
+            document.querySelectorAll('[id^="execute-btn-"]').forEach(button => {
+                button.disabled = !isConnected;
+            });
+        }
+
+        // FUNÇÃO DE RENDERIZAÇÃO COMPLETA
+        function renderCommands() {
+            COMMANDS_CONTAINER.innerHTML = '';
+            const isConnected = serialPort !== null;
+
+            commands.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'command-item command-item-bg p-3 rounded-lg shadow-sm mb-3 transition duration-300';
+                
+                itemDiv.innerHTML = `
+                    <div class="sm:mb-0">
+                        <label class="block sm:hidden text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Descrição</label>
+                        <input type="text" value="${item.name}"
+                            oninput="updateCommand(${index}, 'name', this.value)"
+                            class="w-full p-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="sm:mb-0">
+                        <label class="block sm:hidden text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Comando</label>
+                        <input type="text" value="${item.command}"
+                            oninput="updateCommand(${index}, 'command', this.value)"
+                            placeholder="Ex: AT+CSQ\\r\\n"
+                            class="w-full p-2 border rounded-lg text-sm font-mono">
+                    </div>
+                    <div class="sm:mb-0">
+                        <label class="block sm:hidden text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Atraso (ms)</label>
+                        <input type="number" value="${item.delay}"
+                            oninput="updateCommand(${index}, 'delay', this.value)"
+                            min="0"
+                            class="w-full p-2 border rounded-lg text-sm text-center">
+                    </div>
+                    <div class="sm:mb-0">
+                        <button id="execute-btn-${index}" onclick="executeSingleCommand(${index})" ${isConnected ? '' : 'disabled'}
+                            class="w-full p-2 rounded-lg text-white font-bold text-xs bg-success-green hover:bg-emerald-600 disabled:opacity-50 transition duration-150 shadow-md">
+                            Enviar
+                        </button>
+                    </div>
+                    <div class="sm:mb-0">
+                        <button onclick="removeCommand(${index})"
+                            class="w-full p-2 rounded-lg text-white font-bold text-xs bg-error-red hover:bg-red-600 transition duration-150 shadow-md">
+                            <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+                COMMANDS_CONTAINER.appendChild(itemDiv);
+            });
+            updateExecuteButtonsState(isConnected);
+        }
+
+        // =====================================================================
+        // FUNÇÕES DE UI (LOG, STATUS, DARK MODE)
+        // (Sem alterações, apenas reordenadas para clareza)
+        // =====================================================================
+
+        function updateIcon(isDark) {
+            if (isDark) {
+                SUN_ICON.classList.add('hidden');
+                MOON_ICON.classList.remove('hidden');
+            } else {
+                SUN_ICON.classList.remove('hidden');
+                MOON_ICON.classList.add('hidden');
+            }
+        }
+
+        function loadDarkModePreference() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            let currentMode = localStorage.getItem('theme');
+
+            if (currentMode === 'dark' || (!currentMode && prefersDark)) {
+                HTML_ELEMENT.classList.add('dark');
+                updateIcon(true);
+            } else {
+                HTML_ELEMENT.classList.remove('dark');
+                updateIcon(false);
+            }
+        }
+
+        window.toggleDarkMode = function () {
+            if (HTML_ELEMENT.classList.contains('dark')) {
+                HTML_ELEMENT.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                updateIcon(false);
+            } else {
+                HTML_ELEMENT.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                updateIcon(true);
+            }
+        }
+
+        window.toggleConsolePause = function () {
+            isConsolePaused = !isConsolePaused;
+            if (isConsolePaused) {
+                PAUSE_CONSOLE_TEXT.textContent = 'Continuar';
+                CONSOLE_PAUSE_ICON.classList.add('hidden');
+                CONSOLE_PLAY_ICON.classList.remove('hidden');
+                PAUSE_CONSOLE_BTN.classList.remove('bg-main-blue', 'hover:bg-main-blue-dark');
+                PAUSE_CONSOLE_BTN.classList.add('bg-error-red', 'hover:bg-red-600');
+                setStatus('Console em pausa. O log está sendo capturado, mas a rolagem automática está desativada.', 'info');
+            } else {
+                PAUSE_CONSOLE_TEXT.textContent = 'Pausar';
+                CONSOLE_PLAY_ICON.classList.add('hidden');
+                CONSOLE_PAUSE_ICON.classList.remove('hidden');
+                PAUSE_CONSOLE_BTN.classList.remove('bg-error-red', 'hover:bg-red-600');
+                PAUSE_CONSOLE_BTN.classList.add('bg-main-blue', 'hover:bg-main-blue-dark');
+                setStatus('Rolagem automática do console ativada.', 'success');
+                RESPONSE_DATA_PRE.scrollTop = RESPONSE_DATA_PRE.scrollHeight;
+            }
+        }
+
+        function setStatus(message, type = 'info') {
+            STATUS_MESSAGE_DIV.textContent = message;
+            STATUS_MESSAGE_DIV.className = 'p-3 text-sm rounded-lg border transition duration-300 font-semibold';
+
+            switch (type) {
+                case 'success':
+                    STATUS_MESSAGE_DIV.classList.add('text-green-700', 'bg-green-100', 'border-green-300', 'dark:text-green-300', 'dark:bg-green-900', 'dark:border-green-700');
+                    STATUS_MESSAGE_DIV.innerHTML = `<svg class="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> ${message}`;
+                    break;
+                case 'error':
+                    STATUS_MESSAGE_DIV.classList.add('text-red-700', 'bg-red-100', 'border-red-300', 'dark:text-red-300', 'dark:bg-red-900', 'dark:border-red-700');
+                    STATUS_MESSAGE_DIV.innerHTML = `<svg class="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg> ${message}`;
+                    break;
+                case 'info':
+                default:
+                    STATUS_MESSAGE_DIV.classList.add('status-info-bg', 'border-gray-300', 'dark:border-slate-600');
+                    STATUS_MESSAGE_DIV.innerHTML = `<svg class="w-4 h-4 inline mr-2 text-main-blue dark:text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 4a1 1 0 000 2h2a1 1 0 000-2h-2z" clip-rule="evenodd" /></svg> ${message}`;
+                    break;
+            }
+        }
+
+        function setPortStatus(isConnected) {
+            if (isConnected) {
+                PORT_STATUS_DIV.textContent = "Conectado. Velocidade: " + BAUD_RATE_SELECT.value;
+                PORT_STATUS_DIV.className = 'p-3 text-sm rounded-lg text-center font-semibold serial-status-connected transition duration-300 shadow-inner';
+                SEND_BTN.disabled = false;
+                CONNECT_BTN.textContent = "Desconectar";
+                CONNECT_BTN.classList.remove('bg-main-blue', 'hover:bg-main-blue-dark', 'shadow-main-blue/50');
+                CONNECT_BTN.classList.add('bg-error-red', 'hover:bg-red-600', 'shadow-error-red/50');
+            } else {
+                PORT_STATUS_DIV.textContent = "Dispositivo Desconectado.";
+                PORT_STATUS_DIV.className = 'p-3 text-sm rounded-lg text-center font-semibold serial-status-disconnected transition duration-300 shadow-inner';
+                SEND_BTN.disabled = true;
+                CONNECT_BTN.textContent = "Conectar USB/Serial (Detectar Dispositivo)";
+                CONNECT_BTN.classList.remove('bg-error-red', 'hover:bg-red-600', 'shadow-error-red/50');
+                CONNECT_BTN.classList.add('bg-main-blue', 'hover:bg-main-blue-dark', 'shadow-main-blue/50');
+            }
+            updateExecuteButtonsState(isConnected);
+        }
+
+        window.clearConsole = function () {
+            RESPONSE_DATA_PRE.textContent = 'Console Serial\n';
+            logSerial(`--- Console Limpo ---\n`);
+        }
+
+        function logSerial(data) {
+            RESPONSE_DATA_PRE.textContent += data;
+
+            let lines = RESPONSE_DATA_PRE.textContent.split('\n');
+            if (lines.length > MAX_CONSOLE_LINES) {
+                // Junta a primeira linha (cabeçalho) com o restante, removendo as linhas antigas
+                lines = [lines[0], '--- Linhas Antigas Removidas para Limite (' + MAX_CONSOLE_LINES + ') ---\n'].concat(lines.slice(lines.length - MAX_CONSOLE_LINES + 2));
+                RESPONSE_DATA_PRE.textContent = lines.join('\n');
+            }
+
+            if (!isConsolePaused) {
+                RESPONSE_DATA_PRE.scrollTop = RESPONSE_DATA_PRE.scrollHeight;
+            }
+        }
+
+    </script>
+</body>
+
+</html>
